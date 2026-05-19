@@ -5,11 +5,13 @@ import { LoginPage } from './pages/LoginPage';
 import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { SystemSelectPage } from './pages/SystemSelectPage';
 import { UsersPage } from './pages/UsersPage';
+import { UnitsPage } from './pages/UnitsPage';
 import { getAdminUrl } from './utils/urls';
 
 function AccountLayout({ children }: { children: React.ReactNode }) {
-  const { user, logout, hasRole } = useAuth();
+  const { user, logout, hasRole, hasPermission } = useAuth();
   const canManageUsers = hasRole('super_admin');
+  const canViewUnits = hasPermission('quan_ly_don_vi');
 
   const handleLogout = async () => {
     await logout();
@@ -31,6 +33,11 @@ function AccountLayout({ children }: { children: React.ReactNode }) {
             {canManageUsers && (
               <Link to="/users" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 Người dùng
+              </Link>
+            )}
+            {canViewUnits && (
+              <Link to="/units" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Đơn vị
               </Link>
             )}
             <a href={getAdminUrl('/dashboard')} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
@@ -61,6 +68,16 @@ export default function App() {
               <ProtectedRoute requiredRoles={['super_admin']}>
                 <AccountLayout>
                   <UsersPage />
+                </AccountLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/units"
+            element={
+              <ProtectedRoute requiredPermissions={['quan_ly_don_vi']}>
+                <AccountLayout>
+                  <UnitsPage />
                 </AccountLayout>
               </ProtectedRoute>
             }
