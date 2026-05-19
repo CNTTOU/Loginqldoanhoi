@@ -17,6 +17,22 @@ function figmaAssetResolver() {
 }
 
 export default defineConfig({
+  base: process.env.VITE_APP_BASE_PATH ?? '/login/',
+  build: {
+    chunkSizeWarningLimit: 900,
+    rollupOptions: {
+      output: {
+        manualChunks(id) {
+          if (!id.includes('node_modules')) return undefined
+          if (id.includes('firebase')) return 'vendor-firebase'
+          if (id.includes('lucide-react')) return 'vendor-icons'
+          if (id.includes('react-router')) return 'vendor-router'
+          if (id.includes('react') || id.includes('scheduler')) return 'vendor-react'
+          return undefined
+        },
+      },
+    },
+  },
   plugins: [
     figmaAssetResolver(),
     // The React and Tailwind plugins are both required for Make, even if
