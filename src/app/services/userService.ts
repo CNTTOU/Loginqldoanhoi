@@ -1,7 +1,8 @@
 import { deleteApp, initializeApp } from 'firebase/app';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
+import { getFunctions, httpsCallable } from 'firebase/functions';
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { auth, db, firebaseConfig } from '../lib/firebase';
+import { app, auth, db, firebaseConfig } from '../lib/firebase';
 import type { CreateInternalUserInput, DonVi, NguoiDung, VaiTro } from '../types/firebase';
 import { addLog } from './auditLogService';
 
@@ -79,10 +80,48 @@ export async function createInternalUser(data: CreateInternalUserInput) {
 }
 
 export async function updateUser(uid: string, data: Partial<NguoiDung>) {
+  const nextData = { ...data };
+
+  if (data.ma_don_vi) {
+    nextData.ten_don_vi = await getUnitName(data.ma_don_vi);
+  }
+
+  if (data.ma_vai_tro) {
+    nextData.ten_vai_tro = await getRoleName(data.ma_vai_tro);
+  }
+
   await updateDoc(doc(db, 'nguoi_dung', uid), {
-    ...data,
+    ...nextData,
     ngay_cap_nhat: serverTimestamp(),
   });
+}
+
+export async function sendResetPassword(uid: string, email: string) {
+  await updateDoc(doc(db, 'nguoi_dung', uid), {
+    bat_buoc_doi_mat_khau: true,
+    trang_thai: 'cho_doi_mat_khau',
+    ngay_cap_nhat: serverTimestamp(),
+  });
+
+  await addLog({
+    hanh_dong: 'reset_mat_khau',
+    module: 'nguoi_dung',
+    ma_doi_tuong: uid,
+    noi_dung: `Yêu cầu reset mật khẩu cho ${email}`,
+  }).catch(() => undefined);
+}
+
+export async function deleteInternalUser(uid: string) {
+  const functions = getFunctions(app);
+  const deleteUserAccount = httpsCallable<{ uid: string }, { ok: boolean }>(functions, 'deleteUserAccount');
+  await deleteUserAccount({ uid });
+  await addLog({
+    hanh_dong: 'xoa_tai_khoan',
+    module: 'nguoi_dung',
+    ma_doi_tuong: uid,
+    noi_dung: `Xóa tài khoản nội bộ ${uid}`,
+    muc_do: 'nguy_hiem',
+  }).catch(() => undefined);
 }
 
 export async function lockUser(uid: string) {
