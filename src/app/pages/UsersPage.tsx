@@ -3,15 +3,20 @@ import { Download, Edit3, Filter, KeyRound, Lock, Plus, Search, Trash2, Unlock, 
 import type { DonVi, NguoiDung, TrangThaiNguoiDung } from '../types/firebase';
 import { createInternalUser, deleteInternalUser, getUsers, lockUser, sendResetPassword, unlockUser, updateUser } from '../services/userService';
 import { getUnits } from '../services/unitService';
+import { auth } from '../lib/firebase';
+import { getRoles } from '../services/permissionAdminService';
+import { useAuth } from '../contexts/AuthContext';
 
-const roleOptions = [
-  { value: 'super_admin', label: 'Super Admin', color: 'bg-red-100 text-red-700' },
-  { value: 'admin_doan_hoi', label: 'Admin Đoàn - Hội', color: 'bg-blue-100 text-blue-700' },
-  { value: 'ban_chap_hanh', label: 'Ban Chấp hành', color: 'bg-purple-100 text-purple-700' },
-  { value: 'can_bo_chi_doan_chi_hoi', label: 'Cán bộ Chi đoàn', color: 'bg-cyan-100 text-cyan-700' },
-  { value: 'cong_tac_vien', label: 'Cộng tác viên', color: 'bg-emerald-100 text-emerald-700' },
-  { value: 'nguoi_xem', label: 'Người xem', color: 'bg-slate-100 text-slate-700' },
-];
+type RoleOption = { value: string; label: string; color: string; status: string };
+
+const roleColors: Record<string, string> = {
+  super_admin: 'bg-red-100 text-red-700',
+  admin_doan_hoi: 'bg-blue-100 text-blue-700',
+  ban_chap_hanh: 'bg-purple-100 text-purple-700',
+  can_bo_chi_doan_chi_hoi: 'bg-cyan-100 text-cyan-700',
+  cong_tac_vien: 'bg-emerald-100 text-emerald-700',
+  nguoi_xem: 'bg-slate-100 text-slate-700',
+};
 
 const statusOptions: { value: TrangThaiNguoiDung; label: string }[] = [
   { value: 'dang_hoat_dong', label: 'Đang hoạt động' },
@@ -39,8 +44,8 @@ function getInitials(name: string) {
     .toUpperCase();
 }
 
-function getRoleMeta(maVaiTro: string) {
-  return roleOptions.find((role) => role.value === maVaiTro) ?? roleOptions[roleOptions.length - 1];
+function getRoleMeta(roleOptions: RoleOption[], maVaiTro: string) {
+  return roleOptions.find((role) => role.value === maVaiTro) ?? { value: maVaiTro, label: maVaiTro, color: 'bg-slate-100 text-slate-700', status: 'dang_hoat_dong' };
 }
 
 function getStatusMeta(trangThai: TrangThaiNguoiDung) {
@@ -56,8 +61,10 @@ function getStatusMeta(trangThai: TrangThaiNguoiDung) {
 }
 
 export function UsersPage() {
+  const { refreshUser } = useAuth();
   const [users, setUsers] = useState<NguoiDung[]>([]);
   const [units, setUnits] = useState<DonVi[]>([]);
+  const [roleOptions, setRoleOptions] = useState<RoleOption[]>([]);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
@@ -71,9 +78,17 @@ export function UsersPage() {
   async function loadUsers() {
     setLoading(true);
     try {
-      const [nextUsers, nextUnits] = await Promise.all([getUsers(), getUnits()]);
+      const [nextUsers, nextUnits, nextRoles] = await Promise.all([getUsers(), getUnits(), getRoles()]);
       setUsers(nextUsers);
       setUnits(nextUnits);
+      setRoleOptions(nextRoles.map((role) => ({
+        value: role.ma_vai_tro,
+        label: role.ten_vai_tro,
+        color: roleColors[role.ma_vai_tro] ?? 'bg-slate-100 text-slate-700',
+        status: role.trang_thai,
+      })));
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không thể tải danh sách người dùng.');
     } finally {
       setLoading(false);
     }
@@ -147,7 +162,12 @@ export function UsersPage() {
           ma_don_vi: form.ma_don_vi,
           ma_vai_tro: form.ma_vai_tro,
           trang_thai: form.trang_thai,
+          quyen_bo_sung: [],
+          quyen_bi_chan: [],
         });
+        if (editingUser.uid === auth.currentUser?.uid) {
+          await refreshUser();
+        }
         setMessage('Cập nhật người dùng thành công.');
       } else {
         await createInternalUser({
@@ -158,6 +178,8 @@ export function UsersPage() {
           ma_vai_tro: form.ma_vai_tro,
           trang_thai: form.trang_thai,
           bat_buoc_doi_mat_khau: true,
+          quyen_bo_sung: [],
+          quyen_bi_chan: [],
         });
         setMessage('Tạo tài khoản thành công.');
       }
@@ -186,13 +208,25 @@ export function UsersPage() {
   }
 
   async function handleDelete(user: NguoiDung) {
-    const confirmed = window.confirm(`Xóa vĩnh viễn tài khoản ${user.ho_ten}? Tài khoản sẽ bị xóa khỏi Firebase Auth và Firestore.`);
+    if (user.uid === auth.currentUser?.uid) {
+      setMessage('Không thể tự xóa tài khoản đang đăng nhập.');
+      return;
+    }
+
+    const confirmed = window.confirm(`Ngừng sử dụng tài khoản ${user.ho_ten}? Tài khoản sẽ không đăng nhập được vào hệ thống.`);
     if (!confirmed) return;
 
     setMessage('');
-    await deleteInternalUser(user.uid);
-    setMessage(`Đã xóa tài khoản ${user.ho_ten}.`);
-    await loadUsers();
+    setSaving(true);
+    try {
+      await deleteInternalUser(user.uid);
+      setMessage(`Đã chuyển tài khoản ${user.ho_ten} sang ngừng sử dụng.`);
+      await loadUsers();
+    } catch (error) {
+      setMessage(error instanceof Error ? error.message : 'Không thể xóa tài khoản.');
+    } finally {
+      setSaving(false);
+    }
   }
 
   function exportUsers() {
@@ -208,14 +242,14 @@ export function UsersPage() {
   }
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <div className="flex flex-col gap-4 xl:flex-row xl:items-center xl:justify-between">
         <div className="flex flex-wrap items-center gap-3">
-          <button onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-5 py-3 font-semibold text-white shadow-lg shadow-blue-500/20">
+          <button onClick={openCreateModal} className="inline-flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/20">
             <Plus className="h-5 w-5" />
             Thêm người dùng
           </button>
-          <button onClick={exportUsers} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-5 py-3 font-semibold text-slate-700 hover:bg-slate-50">
+          <button onClick={exportUsers} className="inline-flex items-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2.5 text-sm font-semibold text-slate-700 hover:bg-slate-50">
             <Download className="h-5 w-5" />
             Xuất danh sách
           </button>
@@ -227,21 +261,21 @@ export function UsersPage() {
             value={searchText}
             onChange={(event) => setSearchText(event.target.value)}
             placeholder="Tìm kiếm người dùng..."
-            className="w-full rounded-lg border border-slate-300 bg-white py-3 pl-11 pr-4 outline-none focus:border-blue-500"
+            className="w-full rounded-lg border border-slate-300 bg-white py-2.5 pl-11 pr-4 outline-none focus:border-blue-500"
           />
         </label>
       </div>
 
-      <div className="flex flex-wrap items-center gap-4">
+      <div className="flex flex-wrap items-center gap-3">
         <div className="inline-flex items-center gap-2 text-slate-600">
           <Filter className="h-5 w-5" />
           Lọc theo:
         </div>
-        <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="min-w-44 rounded-lg border border-slate-300 bg-white px-4 py-2.5 outline-none focus:border-blue-500">
+        <select value={roleFilter} onChange={(event) => setRoleFilter(event.target.value)} className="min-w-44 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500">
           <option value="tat_ca">Tất cả vai trò</option>
           {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
         </select>
-        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-44 rounded-lg border border-slate-300 bg-white px-4 py-2.5 outline-none focus:border-blue-500">
+        <select value={statusFilter} onChange={(event) => setStatusFilter(event.target.value)} className="min-w-44 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm outline-none focus:border-blue-500">
           <option value="tat_ca">Tất cả trạng thái</option>
           {statusOptions.map((status) => <option key={status.value} value={status.value}>{status.label}</option>)}
         </select>
@@ -251,60 +285,67 @@ export function UsersPage() {
 
       <section className="overflow-hidden rounded-xl border border-slate-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full min-w-[980px] text-left">
-            <thead className="border-b border-slate-200 bg-slate-50 text-sm text-slate-700">
+          <table className="w-full min-w-[1040px] table-fixed text-left">
+            <colgroup>
+              <col className="w-[30%]" />
+              <col className="w-[28%]" />
+              <col className="w-[16%]" />
+              <col className="w-[13%]" />
+              <col className="w-[13%]" />
+            </colgroup>
+            <thead className="border-b border-slate-200 bg-slate-50 text-xs uppercase tracking-wide text-slate-500">
               <tr>
-                <th className="px-6 py-4 font-semibold">Người dùng</th>
-                <th className="px-6 py-4 font-semibold">Đơn vị</th>
-                <th className="px-6 py-4 font-semibold">Vai trò</th>
-                <th className="px-6 py-4 font-semibold">Trạng thái</th>
-                <th className="px-6 py-4 text-center font-semibold">Thao tác</th>
+                <th className="px-4 py-3 font-semibold">Người dùng</th>
+                <th className="px-4 py-3 font-semibold">Đơn vị</th>
+                <th className="px-4 py-3 font-semibold">Vai trò</th>
+                <th className="px-4 py-3 font-semibold">Trạng thái</th>
+                <th className="px-4 py-3 text-center font-semibold">Thao tác</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {loading ? (
-                <tr><td className="px-6 py-6 text-slate-500" colSpan={5}>Đang tải...</td></tr>
+                <tr><td className="px-4 py-5 text-slate-500" colSpan={5}>Đang tải...</td></tr>
               ) : filteredUsers.map((user, index) => {
-                const role = getRoleMeta(user.ma_vai_tro);
+                const role = getRoleMeta(roleOptions, user.ma_vai_tro);
                 const status = getStatusMeta(user.trang_thai);
                 const avatarColors = ['bg-blue-900', 'bg-cyan-600', 'bg-violet-600', 'bg-sky-500', 'bg-emerald-500', 'bg-slate-500'];
 
                 return (
                   <tr key={user.uid} className="hover:bg-slate-50/70">
-                    <td className="px-6 py-4">
+                    <td className="px-4 py-3">
                       <div className="flex items-center gap-3">
-                        <div className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-full text-sm font-semibold text-white ${avatarColors[index % avatarColors.length]}`}>
+                        <div className={`flex h-9 w-9 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-white ${avatarColors[index % avatarColors.length]}`}>
                           {getInitials(user.ho_ten)}
                         </div>
-                        <div>
-                          <div className="font-semibold text-slate-950">{user.ho_ten}</div>
-                          <div className="text-sm text-slate-500">{user.email}</div>
+                        <div className="min-w-0">
+                          <div className="truncate font-semibold text-slate-950">{user.ho_ten}</div>
+                          <div className="truncate text-sm text-slate-500">{user.email}</div>
                         </div>
                       </div>
                     </td>
-                    <td className="px-6 py-4 text-slate-800">{user.ten_don_vi || user.ma_don_vi}</td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${role.color}`}>
+                    <td className="px-4 py-3"><span className="line-clamp-2 text-sm leading-5 text-slate-800">{user.ten_don_vi || user.ma_don_vi}</span></td>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold ${role.color}`}>
                         {user.ten_vai_tro || role.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <span className={`inline-flex rounded-full px-3 py-1 text-xs font-semibold ${status.color}`}>
+                    <td className="px-4 py-3">
+                      <span className={`inline-flex whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-semibold ${status.color}`}>
                         {status.label}
                       </span>
                     </td>
-                    <td className="px-6 py-4">
-                      <div className="flex justify-center gap-3 text-slate-400">
-                        <button title="Sửa người dùng" onClick={() => openEditModal(user)} className="hover:text-blue-600">
+                    <td className="px-4 py-3">
+                      <div className="flex justify-center gap-1 text-slate-400">
+                        <button title="Sửa người dùng" onClick={() => openEditModal(user)} className="rounded-md p-1.5 hover:bg-blue-50 hover:text-blue-600">
                           <Edit3 className="h-4 w-4" />
                         </button>
-                        <button title={user.trang_thai === 'tam_khoa' ? 'Mở khóa' : 'Khóa tài khoản'} onClick={() => toggleLock(user)} className="hover:text-amber-600">
+                        <button title={user.trang_thai === 'tam_khoa' ? 'Mở khóa' : 'Khóa tài khoản'} onClick={() => toggleLock(user)} className="rounded-md p-1.5 hover:bg-amber-50 hover:text-amber-600">
                           {user.trang_thai === 'tam_khoa' ? <Unlock className="h-4 w-4" /> : <Lock className="h-4 w-4" />}
                         </button>
-                        <button title="Reset mật khẩu" onClick={() => handleResetPassword(user)} className="hover:text-cyan-600">
+                        <button title="Reset mật khẩu" onClick={() => handleResetPassword(user)} className="rounded-md p-1.5 hover:bg-cyan-50 hover:text-cyan-600">
                           <KeyRound className="h-4 w-4" />
                         </button>
-                        <button title="Xóa tài khoản" onClick={() => handleDelete(user)} className="hover:text-red-600">
+                        <button disabled={saving || user.uid === auth.currentUser?.uid} title={user.uid === auth.currentUser?.uid ? 'Không thể tự ngừng sử dụng tài khoản' : 'Ngừng sử dụng tài khoản'} onClick={() => handleDelete(user)} className="rounded-md p-1.5 hover:bg-red-50 hover:text-red-600 disabled:cursor-not-allowed disabled:opacity-40">
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </div>
@@ -317,20 +358,20 @@ export function UsersPage() {
         </div>
       </section>
 
-      <section className="grid gap-4 md:grid-cols-4">
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+      <section className="grid gap-3 md:grid-cols-4">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Tổng số người dùng</p>
           <p className="mt-3 text-2xl font-semibold text-slate-950">{users.length}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Đang hoạt động</p>
           <p className="mt-3 text-2xl font-semibold text-emerald-600">{activeCount}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Đã khóa</p>
           <p className="mt-3 text-2xl font-semibold text-red-600">{lockedCount}</p>
         </div>
-        <div className="rounded-xl border border-slate-200 bg-white p-5 shadow-sm">
+        <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm">
           <p className="text-sm text-slate-500">Quản trị viên</p>
           <p className="mt-3 text-2xl font-semibold text-blue-600">{adminCount}</p>
         </div>
@@ -338,7 +379,7 @@ export function UsersPage() {
 
       {isModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/50 p-4">
-          <div className="w-full max-w-2xl rounded-xl bg-white shadow-2xl">
+          <div className="max-h-[92vh] w-full max-w-4xl overflow-y-auto rounded-xl bg-white shadow-2xl">
             <div className="flex items-center justify-between border-b border-slate-200 px-6 py-4">
               <h2 className="text-lg font-semibold text-slate-950">{editingUser ? 'Sửa người dùng' : 'Thêm người dùng'}</h2>
               <button onClick={() => setIsModalOpen(false)} className="text-slate-400 hover:text-slate-600">
@@ -371,7 +412,9 @@ export function UsersPage() {
               <label className="block">
                 <span className="text-sm font-medium text-slate-700">Vai trò</span>
                 <select value={form.ma_vai_tro} onChange={(event) => setForm({ ...form, ma_vai_tro: event.target.value })} className="mt-1 w-full rounded-lg border border-slate-300 px-3 py-2 outline-none focus:border-blue-500">
-                  {roleOptions.map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
+                  {roleOptions
+                    .filter((role) => role.status !== 'ngung_su_dung' || role.value === editingUser?.ma_vai_tro)
+                    .map((role) => <option key={role.value} value={role.value}>{role.label}</option>)}
                 </select>
               </label>
               <label className="block">

@@ -6,12 +6,14 @@ import { ChangePasswordPage } from './pages/ChangePasswordPage';
 import { SystemSelectPage } from './pages/SystemSelectPage';
 import { UsersPage } from './pages/UsersPage';
 import { UnitsPage } from './pages/UnitsPage';
+import { RolesPage } from './pages/RolesPage';
 import { getAdminUrl } from './utils/urls';
 
 function AccountLayout({ children }: { children: React.ReactNode }) {
   const { user, logout, hasRole, hasPermission } = useAuth();
-  const canManageUsers = hasRole('super_admin');
+  const canManageUsers = hasRole('super_admin') || hasPermission('quan_ly_nguoi_dung');
   const canViewUnits = hasPermission('quan_ly_don_vi');
+  const canManageRoles = hasRole('super_admin') || hasPermission('quan_ly_phan_quyen');
 
   const handleLogout = async () => {
     await logout();
@@ -23,7 +25,7 @@ function AccountLayout({ children }: { children: React.ReactNode }) {
       <header className="border-b border-gray-200 bg-white px-6 py-4">
         <div className="mx-auto flex max-w-6xl items-center justify-between">
           <div>
-            <h1 className="text-lg font-semibold text-gray-900">Cổng tài khoản</h1>
+            <h1 className="text-lg font-semibold text-gray-900">Quản trị tài khoản</h1>
             <p className="text-sm text-gray-500">{user?.ho_ten ?? 'Quản lý người dùng nội bộ'}</p>
           </div>
           <div className="flex items-center gap-3">
@@ -40,6 +42,11 @@ function AccountLayout({ children }: { children: React.ReactNode }) {
                 Đơn vị
               </Link>
             )}
+            {canManageRoles && (
+              <Link to="/roles" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Vai trò
+              </Link>
+            )}
             <a href={getAdminUrl('/dashboard')} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
               Vào QL hoạt động
             </a>
@@ -49,7 +56,7 @@ function AccountLayout({ children }: { children: React.ReactNode }) {
           </div>
         </div>
       </header>
-      <main className="mx-auto max-w-6xl p-6">{children}</main>
+      <main className="mx-auto max-w-7xl py-4">{children}</main>
     </div>
   );
 }
@@ -65,7 +72,7 @@ export default function App() {
           <Route
             path="/users"
             element={
-              <ProtectedRoute requiredRoles={['super_admin']}>
+              <ProtectedRoute requiredPermissions={['quan_ly_nguoi_dung']}>
                 <AccountLayout>
                   <UsersPage />
                 </AccountLayout>
@@ -78,6 +85,16 @@ export default function App() {
               <ProtectedRoute requiredPermissions={['quan_ly_don_vi']}>
                 <AccountLayout>
                   <UnitsPage />
+                </AccountLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/roles"
+            element={
+              <ProtectedRoute requiredPermissions={['quan_ly_phan_quyen']}>
+                <AccountLayout>
+                  <RolesPage />
                 </AccountLayout>
               </ProtectedRoute>
             }

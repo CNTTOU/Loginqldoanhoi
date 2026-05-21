@@ -17,10 +17,14 @@ export interface NguoiDung {
   ngay_tao?: Timestamp;
   nguoi_tao?: string;
   ngay_cap_nhat?: Timestamp;
+  quyen_bo_sung?: string[];
+  quyen_bi_chan?: string[];
+  danh_sach_he_thong?: string[];
 }
 
 export interface CurrentUserProfile extends NguoiDung {
   danh_sach_quyen: string[];
+  danh_sach_he_thong: string[];
 }
 
 export interface VaiTro {
@@ -31,6 +35,27 @@ export interface VaiTro {
   la_mac_dinh: boolean;
   trang_thai: string;
   danh_sach_quyen: string[];
+  danh_sach_he_thong?: string[];
+}
+
+export interface HeThong {
+  ma_he_thong: string;
+  ten_he_thong: string;
+  mo_ta: string;
+  duong_dan: string;
+  trang_thai: string;
+  thu_tu: number;
+}
+
+export interface Quyen {
+  ma_quyen: string;
+  ma_he_thong: string;
+  ten_quyen: string;
+  nhom_quyen: string;
+  mo_ta: string;
+  la_quyen_nguy_hiem: boolean;
+  trang_thai: string;
+  thu_tu: number;
 }
 
 export interface DonVi {
@@ -53,4 +78,7 @@ export interface CreateInternalUserInput {
   ma_vai_tro: string;
   trang_thai?: TrangThaiNguoiDung;
   bat_buoc_doi_mat_khau?: boolean;
+  quyen_bo_sung?: string[];
+  quyen_bi_chan?: string[];
+  danh_sach_he_thong?: string[];
 }

@@ -3,7 +3,7 @@ import { doc, getDoc, serverTimestamp, updateDoc } from 'firebase/firestore';
 import { auth, db } from '../lib/firebase';
 import type { CurrentUserProfile, NguoiDung } from '../types/firebase';
 import { addLog } from './auditLogService';
-import { getRolePermissions } from './permissionService';
+import { getRoleAuthorization } from './permissionService';
 
 export class FriendlyAuthError extends Error {
   constructor(message: string) {
@@ -33,12 +33,44 @@ function assertLoginStatus(profile: NguoiDung) {
   }
 }
 
+function mapFirestoreProfileError(error: unknown) {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+  const message = error instanceof Error ? error.message : '';
+
+  if (code.includes('permission-denied')) {
+    return 'Không có quyền đọc dữ liệu người dùng trên Firebase Login. Vui lòng kiểm tra Firestore Rules.';
+  }
+
+  if (code.includes('unavailable') || message.includes('client is offline')) {
+    return 'Không kết nối được Firestore của Firebase Login. Vui lòng kiểm tra Firestore Database đã được tạo/bật và cấu hình .env đúng project.';
+  }
+
+  return 'Không đọc được dữ liệu người dùng từ Firebase Login. Vui lòng thử lại sau.';
+}
+
+function mapChangePasswordError(error: unknown) {
+  const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+  if (code.includes('auth/requires-recent-login')) return 'Phiên đăng nhập đã quá lâu. Vui lòng đăng xuất, đăng nhập lại rồi đổi mật khẩu.';
+  if (code.includes('auth/weak-password')) return 'Mật khẩu mới chưa đủ mạnh. Vui lòng dùng ít nhất 8 ký tự.';
+  if (code.includes('permission-denied')) return 'Không có quyền cập nhật trạng thái tài khoản. Vui lòng deploy lại Firestore Rules.';
+  return 'Không thể đổi mật khẩu. Vui lòng đăng nhập lại và thử tiếp.';
+}
+
 export async function getCurrentUserProfile(uid: string): Promise<CurrentUserProfile | null> {
-  const userSnap = await getDoc(doc(db, 'nguoi_dung', uid));
-  if (!userSnap.exists()) return null;
-  const profile = userSnap.data() as NguoiDung;
-  const danh_sach_quyen = await getRolePermissions(profile.ma_vai_tro);
-  return { ...profile, uid, danh_sach_quyen };
+  try {
+    const userSnap = await getDoc(doc(db, 'nguoi_dung', uid));
+    if (!userSnap.exists()) return null;
+    const profile = userSnap.data() as NguoiDung;
+    const authorization = await getRoleAuthorization(profile.ma_vai_tro);
+    return {
+      ...profile,
+      uid,
+      danh_sach_quyen: authorization.permissions,
+      danh_sach_he_thong: authorization.systems,
+    };
+  } catch (error) {
+    throw new FriendlyAuthError(mapFirestoreProfileError(error));
+  }
 }
 
 export async function login(email: string, password: string) {
@@ -96,16 +128,20 @@ export async function changeFirstPassword(newPassword: string) {
   const currentUser = auth.currentUser;
   if (!currentUser) throw new FriendlyAuthError('Phiên đăng nhập không còn hợp lệ.');
 
-  await updatePassword(currentUser, newPassword);
-  await updateDoc(doc(db, 'nguoi_dung', currentUser.uid), {
-    bat_buoc_doi_mat_khau: false,
-    trang_thai: 'dang_hoat_dong',
-    ngay_cap_nhat: serverTimestamp(),
-  });
-  await addLog({
-    hanh_dong: 'doi_mat_khau_lan_dau',
-    module: 'nguoi_dung',
-    ma_doi_tuong: currentUser.uid,
-    noi_dung: 'Người dùng đổi mật khẩu lần đầu',
-  }).catch(() => undefined);
+  try {
+    await updatePassword(currentUser, newPassword);
+    await updateDoc(doc(db, 'nguoi_dung', currentUser.uid), {
+      bat_buoc_doi_mat_khau: false,
+      trang_thai: 'dang_hoat_dong',
+      ngay_cap_nhat: serverTimestamp(),
+    });
+    await addLog({
+      hanh_dong: 'doi_mat_khau_lan_dau',
+      module: 'nguoi_dung',
+      ma_doi_tuong: currentUser.uid,
+      noi_dung: 'Người dùng đổi mật khẩu lần đầu',
+    }).catch(() => undefined);
+  } catch (error) {
+    throw new FriendlyAuthError(mapChangePasswordError(error));
+  }
 }

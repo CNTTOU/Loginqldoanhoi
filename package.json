@@ -6,6 +6,8 @@
   "scripts": {
     "build": "vite build",
     "dev": "vite",
+    "seed:login-user": "node scripts/seedLoginUser.mjs",
+    "deploy:rules": "npx firebase-tools deploy --only firestore:rules",
     "deploy:functions": "npx firebase-tools deploy --only functions"
   },
   "dependencies": {

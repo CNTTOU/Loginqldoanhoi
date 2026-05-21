@@ -30,8 +30,8 @@ export function ChangePasswordPage() {
       await changeFirstPassword(password);
       await refreshUser();
       navigate('/chon-he-thong', { replace: true });
-    } catch {
-      setError('Không thể đổi mật khẩu. Vui lòng đăng nhập lại và thử tiếp.');
+    } catch (changeError) {
+      setError(changeError instanceof Error ? changeError.message : 'Không thể đổi mật khẩu. Vui lòng đăng nhập lại và thử tiếp.');
     } finally {
       setLoading(false);
     }

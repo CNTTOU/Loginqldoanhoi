@@ -1,11 +1,36 @@
 import { ShieldCheck, Users, ClipboardList, LogOut } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { getAdminUrl } from '../utils/urls';
+import { getSystems } from '../services/permissionAdminService';
+import type { HeThong } from '../types/firebase';
 
 export function SystemSelectPage() {
-  const { user, logout, hasAnyPermission, isSuperAdmin } = useAuth();
-  const canOpenActivity = isSuperAdmin() || hasAnyPermission(['xem_hoat_dong', 'them_hoat_dong', 'duyet_hoat_dong']);
-  const canManageUsers = isSuperAdmin();
+  const { user, logout, hasPermission, isSuperAdmin } = useAuth();
+  const [systems, setSystems] = useState<HeThong[]>([]);
+  const systemSet = useMemo(() => new Set(user?.danh_sach_he_thong ?? []), [user?.danh_sach_he_thong]);
+  const canAccessAccount = isSuperAdmin() || systemSet.has('quan_tri_tai_khoan');
+  const canManageUsers = canAccessAccount && (isSuperAdmin() || hasPermission('quan_ly_nguoi_dung'));
+  const canViewUnits = canAccessAccount && hasPermission('quan_ly_don_vi');
+  const canManageRoles = canAccessAccount && (isSuperAdmin() || hasPermission('quan_ly_phan_quyen'));
+  const accountHref = canManageUsers ? '/login/users' : canManageRoles ? '/login/roles' : '/login/units';
+  const canOpenAccount = canManageUsers || canViewUnits || canManageRoles;
+
+  useEffect(() => {
+    getSystems()
+      .then(setSystems)
+      .catch(() => {
+        setSystems([]);
+      });
+  }, []);
+
+  const availableSystems = useMemo(() => {
+    if (!user) return [];
+    return systems.filter((system) => {
+      if (isSuperAdmin()) return true;
+      return systemSet.has(system.ma_he_thong);
+    });
+  }, [isSuperAdmin, systemSet, systems, user]);
 
   async function handleLogout() {
     await logout();
@@ -28,27 +53,27 @@ export function SystemSelectPage() {
         </header>
 
         <section className="grid gap-4 md:grid-cols-2">
-          {canOpenActivity && (
-            <a href={getAdminUrl('/dashboard')} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md">
+          {availableSystems.map((system) => (
+            <a key={system.ma_he_thong} href={system.ma_he_thong === 'quan_ly_hoat_dong' ? getAdminUrl('/dashboard') : system.duong_dan} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md">
               <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-blue-50 text-blue-700">
                 <ClipboardList className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-950">Quản lý hoạt động</h2>
-              <p className="mt-2 text-sm text-slate-600">Theo dõi hoạt động, minh chứng, duyệt và báo cáo theo phân quyền.</p>
+              <h2 className="text-lg font-semibold text-slate-950">{system.ten_he_thong}</h2>
+              <p className="mt-2 text-sm text-slate-600">{system.mo_ta}</p>
             </a>
-          )}
+          ))}
 
-          {canManageUsers && (
-            <a href="/login/users" className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md">
+          {canOpenAccount && (
+            <a href={accountHref} className="rounded-lg border border-slate-200 bg-white p-6 shadow-sm transition hover:border-blue-300 hover:shadow-md">
               <div className="mb-5 flex h-11 w-11 items-center justify-center rounded-lg bg-emerald-50 text-emerald-700">
                 <Users className="h-6 w-6" />
               </div>
-              <h2 className="text-lg font-semibold text-slate-950">Quản lý người dùng</h2>
-              <p className="mt-2 text-sm text-slate-600">Tạo tài khoản nội bộ, khóa/mở khóa và kiểm soát hồ sơ người dùng.</p>
+              <h2 className="text-lg font-semibold text-slate-950">Quản trị tài khoản</h2>
+              <p className="mt-2 text-sm text-slate-600">Quản lý người dùng, đơn vị và vai trò theo phân quyền được cấp.</p>
             </a>
           )}
 
-          {!canOpenActivity && !canManageUsers && (
+          {availableSystems.length === 0 && !canOpenAccount && (
             <div className="rounded-lg border border-amber-200 bg-amber-50 p-6 text-amber-800">
               <ShieldCheck className="mb-4 h-7 w-7" />
               <h2 className="text-lg font-semibold">Chưa có phân hệ khả dụng</h2>

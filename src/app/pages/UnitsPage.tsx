@@ -1,5 +1,5 @@
 import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { Award, Building2, Calendar, Edit, Filter, Mail, Plus, Search, Trash2, Users, X } from 'lucide-react';
+import { Award, Building2, Calendar, Edit, Filter, Mail, Plus, Search, Trash2, X } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import type { DonVi } from '../types/firebase';
 import { createUnit, createUnitType, deactivateUnit, deleteOrDeactivateUnit, deleteUnitType, getUnits, getUnitTypes, type UnitType, updateUnit, updateUnitType } from '../services/unitService';
@@ -47,25 +47,7 @@ function StatCard({ icon: Icon, title, value, iconColor, iconBg }: { icon: typeo
   );
 }
 
-const defaultVisibleStats = ['chi_doan_chi_hoi', 'cau_lac_bo'];
-const mergedChiDoanHoiTypes = ['chi_doan', 'chi_hoi', 'chi_doan_chi_hoi'];
-
-function normalizeText(value: string) {
-  return value
-    .normalize('NFD')
-    .replace(/[\u0300-\u036f]/g, '')
-    .replace(/đ/g, 'd')
-    .replace(/Đ/g, 'D')
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '_')
-    .replace(/^_+|_+$/g, '');
-}
-
-function isMergedChiDoanHoiType(type: UnitType) {
-  const normalizedName = normalizeText(type.ten_loai);
-  return mergedChiDoanHoiTypes.includes(type.ma_loai) || normalizedName === 'chi_doan_chi_hoi';
-}
-
+const defaultVisibleStats: string[] = [];
 export function UnitsPage() {
   const { hasRole } = useAuth();
   const [units, setUnits] = useState<DonVi[]>([]);
@@ -258,8 +240,7 @@ export function UnitsPage() {
   }
 
   const statOptions = useMemo(() => {
-    const dynamicStats = unitTypes
-      .filter((type) => !isMergedChiDoanHoiType(type))
+    return unitTypes
       .map((type) => ({
         key: type.ma_loai,
         title: type.ma_loai === 'cau_lac_bo' ? 'Câu Lạc Bộ' : type.ten_loai,
@@ -268,18 +249,6 @@ export function UnitsPage() {
         iconColor: type.ma_loai === 'cau_lac_bo' ? 'text-orange-600' : 'text-blue-600',
         iconBg: type.ma_loai === 'cau_lac_bo' ? 'bg-orange-100' : 'bg-blue-100',
       }));
-
-    return [
-      {
-        key: 'chi_doan_chi_hoi',
-        title: 'Chi Đoàn - Chi Hội',
-        value: units.filter((unit) => mergedChiDoanHoiTypes.includes(unit.loai_don_vi)).length,
-        icon: Users,
-        iconColor: 'text-purple-600',
-        iconBg: 'bg-purple-100',
-      },
-      ...dynamicStats,
-    ];
   }, [unitTypes, units]);
 
   function toggleVisibleStat(key: string) {
@@ -292,21 +261,21 @@ export function UnitsPage() {
   }
 
   return (
-    <div className="p-6">
-      <div className="mb-6 flex items-center justify-between">
+    <div className="space-y-4">
+      <div className="flex items-center justify-between">
         <div>
           <h2 className="mb-1 text-gray-900">Quản lý đơn vị</h2>
           <p className="text-sm text-gray-500">Quản lý các đơn vị trực thuộc Đoàn - Hội</p>
         </div>
         {canManage && (
-          <button onClick={openCreateModal} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-6 py-3 text-white shadow-lg shadow-blue-500/30 transition-all hover:from-blue-700 hover:to-cyan-700">
+          <button onClick={openCreateModal} className="flex items-center gap-2 rounded-lg bg-gradient-to-r from-blue-600 to-cyan-600 px-4 py-2.5 text-sm font-semibold text-white shadow-lg shadow-blue-500/25 transition-all hover:from-blue-700 hover:to-cyan-700">
             <Plus className="h-5 w-5" />
             <span>Thêm đơn vị</span>
           </button>
         )}
       </div>
 
-      <div className="mb-6 grid grid-cols-1 gap-4 md:grid-cols-2 lg:grid-cols-5">
+      <div className="grid grid-cols-1 gap-3 md:grid-cols-2 lg:grid-cols-5">
         <StatCard icon={Building2} title="Tổng số đơn vị" value={units.length} iconColor="text-blue-600" iconBg="bg-blue-100" />
         {statOptions.filter((stat) => visibleStats.includes(stat.key)).map((stat) => (
           <StatCard key={stat.key} icon={stat.icon} title={stat.title} value={stat.value} iconColor={stat.iconColor} iconBg={stat.iconBg} />
@@ -315,7 +284,7 @@ export function UnitsPage() {
       </div>
 
       {canManage && (
-        <div className="mb-6 rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="rounded-xl border border-gray-100 bg-white p-3 shadow-sm">
           <div className="mb-3 flex items-center gap-2">
             <Filter className="h-5 w-5 text-gray-600" />
             <h3 className="text-gray-900">Hiển thị ô thống kê</h3>
@@ -331,8 +300,8 @@ export function UnitsPage() {
         </div>
       )}
 
-      <div className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center gap-2">
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center gap-2">
           <Filter className="h-5 w-5 text-gray-600" />
           <h3 className="text-gray-900">Bộ lọc</h3>
         </div>
@@ -372,8 +341,8 @@ export function UnitsPage() {
         </div>
       </div>
 
-      <div className="mb-6 rounded-xl border border-gray-100 bg-white p-5 shadow-sm">
-        <div className="mb-4 flex items-center justify-between">
+      <div className="rounded-xl border border-gray-100 bg-white p-4 shadow-sm">
+        <div className="mb-3 flex items-center justify-between">
           <div>
             <h3 className="text-gray-900">Loại đơn vị</h3>
             <p className="text-sm text-gray-500">Quản lý danh mục loại đơn vị dùng trong form đơn vị</p>
@@ -408,55 +377,64 @@ export function UnitsPage() {
         </div>
       </div>
 
-      {message && <div className="mb-6 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</div>}
+      {message && <div className="rounded-lg border border-blue-200 bg-blue-50 px-4 py-3 text-sm text-blue-700">{message}</div>}
 
-      <div className="rounded-xl border border-gray-100 bg-white shadow-sm">
+      <div className="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm">
         <div className="overflow-x-auto">
-          <table className="w-full">
+          <table className="w-full min-w-[1120px] table-fixed">
+            <colgroup>
+              <col className="w-[22%]" />
+              <col className="w-[13%]" />
+              <col className="w-[18%]" />
+              <col className="w-[11%]" />
+              <col className="w-[16%]" />
+              <col className="w-[10%]" />
+              <col className="w-[10%]" />
+            </colgroup>
             <thead>
-              <tr className="border-b border-gray-200 bg-gray-50">
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Tên đơn vị</th>
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Loại đơn vị</th>
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Cấp quản lý</th>
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Người phụ trách</th>
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Email liên hệ</th>
-                <th className="px-6 py-4 text-left text-sm text-gray-600">Trạng thái</th>
-                <th className="px-6 py-4 text-center text-sm text-gray-600">Thao tác</th>
+              <tr className="border-b border-gray-200 bg-slate-50">
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Tên đơn vị</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Loại đơn vị</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Cấp quản lý</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Phụ trách</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Email</th>
+                <th className="px-4 py-3 text-left text-xs font-semibold uppercase tracking-wide text-slate-500">Trạng thái</th>
+                <th className="px-4 py-3 text-center text-xs font-semibold uppercase tracking-wide text-slate-500">Thao tác</th>
               </tr>
             </thead>
-            <tbody>
+            <tbody className="divide-y divide-gray-100">
               {loading ? (
-                <tr><td className="px-6 py-6 text-gray-500" colSpan={7}>Đang tải...</td></tr>
+                <tr><td className="px-4 py-5 text-gray-500" colSpan={7}>Đang tải...</td></tr>
               ) : filteredUnits.map((unit) => {
                 const status = getStatus(unit);
                 return (
-                  <tr key={unit.ma_don_vi} className="border-b border-gray-100 transition-colors hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{unit.ten_don_vi}</div>
-                      <div className="text-xs text-gray-500">{unit.ma_don_vi}</div>
+                  <tr key={unit.ma_don_vi} className="transition-colors hover:bg-slate-50/80">
+                    <td className="px-4 py-3 align-top">
+                      <div className="line-clamp-2 text-sm font-semibold leading-5 text-slate-950">{unit.ten_don_vi}</div>
+                      <div className="mt-1 text-xs text-slate-500">{unit.ma_don_vi}</div>
                     </td>
-                    <td className="px-6 py-4"><span className="rounded-full bg-blue-50 px-2.5 py-1 text-xs text-blue-700">{getTypeLabel(unitTypes, unit.loai_don_vi)}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm text-gray-600">{unit.ten_don_vi_cha || 'Cấp gốc'}</span></td>
-                    <td className="px-6 py-4"><span className="text-sm text-gray-900">{unit.nguoi_phu_trach || '-'}</span></td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center gap-2">
-                        <Mail className="h-4 w-4 text-gray-400" />
-                        <span className="text-sm text-gray-600">{unit.email_lien_he || '-'}</span>
+                    <td className="px-4 py-3 align-top"><span className="inline-flex whitespace-nowrap rounded-md bg-blue-50 px-2.5 py-1 text-xs font-medium text-blue-700">{getTypeLabel(unitTypes, unit.loai_don_vi)}</span></td>
+                    <td className="px-4 py-3 align-top"><span className="line-clamp-2 text-sm leading-5 text-slate-600">{unit.ten_don_vi_cha || 'Cấp gốc'}</span></td>
+                    <td className="px-4 py-3 align-top"><span className="text-sm text-slate-800">{unit.nguoi_phu_trach || '-'}</span></td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex min-w-0 items-center gap-2">
+                        <Mail className="h-4 w-4 shrink-0 text-slate-400" />
+                        <span className="truncate text-sm text-slate-600">{unit.email_lien_he || '-'}</span>
                       </div>
                     </td>
-                    <td className="px-6 py-4"><span className={`inline-flex items-center rounded-full px-2.5 py-1 text-xs ${status.color}`}>{status.label}</span></td>
-                    <td className="px-6 py-4">
-                      <div className="flex items-center justify-center gap-2">
+                    <td className="px-4 py-3 align-top"><span className={`inline-flex whitespace-nowrap rounded-md px-2.5 py-1 text-xs font-medium ${status.color}`}>{status.label}</span></td>
+                    <td className="px-4 py-3 align-top">
+                      <div className="flex items-center justify-center gap-1">
                         {canManage && (
                           <>
-                            <button onClick={() => openEditModal(unit)} className="rounded-lg p-2 transition-colors hover:bg-green-50" title="Chỉnh sửa">
-                              <Edit className="h-4 w-4 text-gray-400" />
+                            <button onClick={() => openEditModal(unit)} className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-blue-50 hover:text-blue-600" title="Chỉnh sửa">
+                              <Edit className="h-4 w-4" />
                             </button>
-                            <button onClick={() => handleDeactivate(unit)} className="rounded-lg p-2 transition-colors hover:bg-orange-50" title="Ngừng sử dụng">
-                              <Calendar className="h-4 w-4 text-gray-400" />
+                            <button onClick={() => handleDeactivate(unit)} className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-amber-50 hover:text-amber-600" title="Ngừng sử dụng">
+                              <Calendar className="h-4 w-4" />
                             </button>
-                            <button onClick={() => handleDelete(unit)} className="rounded-lg p-2 transition-colors hover:bg-red-50" title="Xóa">
-                              <Trash2 className="h-4 w-4 text-gray-400" />
+                            <button onClick={() => handleDelete(unit)} className="rounded-md p-1.5 text-slate-400 transition-colors hover:bg-red-50 hover:text-red-600" title="Xóa">
+                              <Trash2 className="h-4 w-4" />
                             </button>
                           </>
                         )}
@@ -469,7 +447,7 @@ export function UnitsPage() {
           </table>
         </div>
 
-        <div className="flex items-center justify-between border-t border-gray-200 px-6 py-4">
+        <div className="flex items-center justify-between border-t border-gray-200 px-4 py-3">
           <div className="text-sm text-gray-600">Hiển thị {filteredUnits.length} đơn vị</div>
           <div className="flex items-center gap-2">
             <button className="rounded-lg bg-gray-100 px-4 py-2 text-sm text-gray-700">Trước</button>
@@ -497,8 +475,9 @@ export function UnitsPage() {
                 <input value={form.ten_don_vi} onChange={(event) => setForm({ ...form, ten_don_vi: event.target.value })} className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500" />
               </label>
               <label className="block">
-                <span className="mb-2 block text-sm text-gray-600">Loại đơn vị</span>
+                <span className="mb-2 block text-sm text-gray-600">Loại đơn vị <span className="text-red-500">*</span></span>
                 <select value={form.loai_don_vi} onChange={(event) => setForm({ ...form, loai_don_vi: event.target.value })} className="w-full rounded-lg border border-gray-200 bg-gray-50 px-3 py-2.5 focus:outline-none focus:ring-2 focus:ring-blue-500">
+                  <option value="">Chọn loại đơn vị</option>
                   {unitTypes.map((type) => <option key={type.ma_loai} value={type.ma_loai}>{type.ten_loai}</option>)}
                 </select>
               </label>

@@ -1,0 +1,102 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function userPath() {
+      return /databases/$(database)/documents/nguoi_dung/$(request.auth.uid);
+    }
+
+    function hasUserProfile() {
+      return isSignedIn() && exists(userPath());
+    }
+
+    function getUserData() {
+      return get(userPath()).data;
+    }
+
+    function isActiveUser() {
+      return hasUserProfile() && getUserData().trang_thai in ['dang_hoat_dong', 'cho_doi_mat_khau'];
+    }
+
+    function hasRole(role) {
+      return isActiveUser() && getUserData().ma_vai_tro == role;
+    }
+
+    function isSuperAdmin() {
+      return hasRole('super_admin');
+    }
+
+    function rolePath() {
+      return /databases/$(database)/documents/vai_tro/$(getUserData().ma_vai_tro);
+    }
+
+    function hasPermission(permission) {
+      return isActiveUser()
+        && exists(rolePath())
+        && permission in get(rolePath()).data.danh_sach_quyen;
+    }
+
+    function isAdmin() {
+      return isSuperAdmin() || hasRole('admin_doan_hoi');
+    }
+
+    function isFirstPasswordChange(uid) {
+      return request.auth.uid == uid
+        && isActiveUser()
+        && resource.data.trang_thai == 'cho_doi_mat_khau'
+        && request.resource.data.trang_thai == 'dang_hoat_dong'
+        && request.resource.data.bat_buoc_doi_mat_khau == false
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ma_vai_tro', 'ten_vai_tro']);
+    }
+
+    match /quyen/{id} {
+      allow read: if isActiveUser();
+      allow write: if isSuperAdmin();
+    }
+
+    match /he_thong/{id} {
+      allow read: if isActiveUser();
+      allow write: if isSuperAdmin() || hasPermission('quan_ly_phan_quyen');
+    }
+
+    match /vai_tro/{id} {
+      allow read: if isActiveUser();
+      allow write: if isSuperAdmin() || hasPermission('quan_ly_phan_quyen');
+    }
+
+    match /nguoi_dung/{uid} {
+      allow get: if isSignedIn() && (request.auth.uid == uid || isAdmin());
+      allow list: if isAdmin();
+      allow create: if isAdmin();
+      allow update: if isAdmin()
+        || isFirstPasswordChange(uid)
+        || (request.auth.uid == uid
+          && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['ma_vai_tro', 'ten_vai_tro', 'trang_thai']));
+      allow delete: if isSuperAdmin();
+    }
+
+    match /don_vi/{id} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    match /loai_don_vi/{id} {
+      allow read: if isActiveUser();
+      allow write: if isAdmin();
+    }
+
+    match /nhat_ky_he_thong/{id} {
+      allow read: if isAdmin();
+      allow create: if isActiveUser();
+      allow update, delete: if isSuperAdmin();
+    }
+
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}

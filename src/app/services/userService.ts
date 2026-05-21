@@ -1,25 +1,34 @@
 import { deleteApp, initializeApp } from 'firebase/app';
 import { createUserWithEmailAndPassword, getAuth, signOut } from 'firebase/auth';
-import { getFunctions, httpsCallable } from 'firebase/functions';
 import { collection, doc, getDoc, getDocs, orderBy, query, serverTimestamp, setDoc, updateDoc } from 'firebase/firestore';
-import { app, auth, db, firebaseConfig } from '../lib/firebase';
+import { auth, db, firebaseConfig } from '../lib/firebase';
 import type { CreateInternalUserInput, DonVi, NguoiDung, VaiTro } from '../types/firebase';
 import { addLog } from './auditLogService';
+import { getCached } from './cache';
 
 function buildUsername(email: string) {
   return email.split('@')[0].trim().toLowerCase();
 }
 
 async function getUnitName(maDonVi: string) {
-  const snap = await getDoc(doc(db, 'don_vi', maDonVi));
-  if (!snap.exists()) return '';
-  return (snap.data() as DonVi).ten_don_vi ?? '';
+  return getCached(`unit-name:${maDonVi}`, 5 * 60 * 1000, async () => {
+    const snap = await getDoc(doc(db, 'don_vi', maDonVi));
+    if (!snap.exists()) return '';
+    return (snap.data() as DonVi).ten_don_vi ?? '';
+  });
 }
 
 async function getRoleName(maVaiTro: string) {
-  const snap = await getDoc(doc(db, 'vai_tro', maVaiTro));
-  if (!snap.exists()) return '';
-  return (snap.data() as VaiTro).ten_vai_tro ?? maVaiTro;
+  return getCached(`role-name:${maVaiTro}`, 5 * 60 * 1000, async () => {
+    const snap = await getDoc(doc(db, 'vai_tro', maVaiTro));
+    if (!snap.exists()) return '';
+    return (snap.data() as VaiTro).ten_vai_tro ?? maVaiTro;
+  });
+}
+
+export async function getUsers() {
+  const snapshot = await getDocs(query(collection(db, 'nguoi_dung'), orderBy('ngay_tao', 'desc')));
+  return snapshot.docs.map((item) => ({ ...(item.data() as NguoiDung), uid: item.id }));
 }
 
 async function createAuthUserWithSecondaryApp(email: string, password: string) {
@@ -33,11 +42,6 @@ async function createAuthUserWithSecondaryApp(email: string, password: string) {
   } finally {
     await deleteApp(secondaryApp).catch(() => undefined);
   }
-}
-
-export async function getUsers() {
-  const snapshot = await getDocs(query(collection(db, 'nguoi_dung'), orderBy('ngay_tao', 'desc')));
-  return snapshot.docs.map((item) => ({ ...(item.data() as NguoiDung), uid: item.id }));
 }
 
 export async function createInternalUser(data: CreateInternalUserInput) {
@@ -61,6 +65,9 @@ export async function createInternalUser(data: CreateInternalUserInput) {
     bat_buoc_doi_mat_khau: data.bat_buoc_doi_mat_khau ?? true,
     lan_dang_nhap_cuoi: null,
     nguoi_tao: currentAdmin.uid,
+    quyen_bo_sung: data.quyen_bo_sung ?? [],
+    quyen_bi_chan: data.quyen_bi_chan ?? [],
+    danh_sach_he_thong: data.danh_sach_he_thong ?? [],
   };
 
   await setDoc(doc(db, 'nguoi_dung', uid), {
@@ -112,15 +119,16 @@ export async function sendResetPassword(uid: string, email: string) {
 }
 
 export async function deleteInternalUser(uid: string) {
-  const functions = getFunctions(app);
-  const deleteUserAccount = httpsCallable<{ uid: string }, { ok: boolean }>(functions, 'deleteUserAccount');
-  await deleteUserAccount({ uid });
+  await updateUser(uid, {
+    trang_thai: 'ngung_su_dung',
+    bat_buoc_doi_mat_khau: true,
+  });
   await addLog({
-    hanh_dong: 'xoa_tai_khoan',
+    hanh_dong: 'ngung_su_dung_tai_khoan',
     module: 'nguoi_dung',
     ma_doi_tuong: uid,
-    noi_dung: `Xóa tài khoản nội bộ ${uid}`,
-    muc_do: 'nguy_hiem',
+    noi_dung: `Ngừng sử dụng tài khoản ${uid}`,
+    muc_do: 'canh_bao',
   }).catch(() => undefined);
 }
 

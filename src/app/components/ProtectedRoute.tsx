@@ -25,6 +25,13 @@ export function ProtectedRoute({ children, requiredPermissions = [], anyPermissi
     return <Navigate to={`/?redirect=${redirect}`} replace />;
   }
 
+  if (
+    location.pathname !== '/doi-mat-khau' &&
+    (user.bat_buoc_doi_mat_khau || user.trang_thai === 'cho_doi_mat_khau')
+  ) {
+    return <Navigate to="/doi-mat-khau" replace />;
+  }
+
   const hasRequiredPermissions = requiredPermissions.every((permission) => hasPermission(permission));
   const hasAnyRequiredPermission = anyPermissions.length === 0 || hasAnyPermission(anyPermissions);
   const hasRequiredRole = requiredRoles.length === 0 || requiredRoles.some((role) => hasRole(role));
