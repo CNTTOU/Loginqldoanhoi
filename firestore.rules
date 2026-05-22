@@ -95,6 +95,11 @@ service cloud.firestore {
       allow update, delete: if isSuperAdmin();
     }
 
+    match /cai_dat_dang_nhap/{id} {
+      allow read: if id == 'giao_dien' || isActiveUser();
+      allow write: if isSuperAdmin() || hasPermission('quan_ly_phan_quyen');
+    }
+
     match /{document=**} {
       allow read, write: if false;
     }

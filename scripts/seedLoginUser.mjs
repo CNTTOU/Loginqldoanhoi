@@ -179,6 +179,7 @@ const permissions = [
   ['xem_bao_cao', 'Xem báo cáo', 'quan_ly_hoat_dong', 'bao_cao', false],
   ['tao_bao_cao', 'Tạo báo cáo', 'quan_ly_hoat_dong', 'bao_cao', false],
   ['cai_dat_he_thong', 'Cài đặt hệ thống', 'quan_ly_hoat_dong', 'he_thong', true],
+  ['quan_ly_hoat_dong_noi_bat', 'Chỉnh sửa hoạt động nổi bật', 'quan_ly_hoat_dong', 'he_thong', false],
   ['tao_goi_luu_tru', 'Tạo gói lưu trữ', 'quan_ly_hoat_dong', 'luu_tru', true],
   ['xoa_du_lieu_nam_hoc', 'Xóa dữ liệu năm học', 'quan_ly_hoat_dong', 'luu_tru', true],
 ];
@@ -211,6 +212,15 @@ async function main() {
       ngay_cap_nhat: now,
     });
   }
+
+  console.log('Đang tạo cấu hình: cai_dat_dang_nhap/giao_dien');
+  await setDocument(projectId, firestoreAccessToken, 'cai_dat_dang_nhap/giao_dien', {
+    anh_dang_nhap_url: 'https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=400&fit=crop',
+    anh_dang_nhap_alt: 'Sinh viên làm việc nhóm',
+    tieu_de_phu: 'Hệ thống quản lý Đoàn - Hội',
+    ten_don_vi: 'Đoàn - Hội Khoa Công nghệ Thông tin',
+    ngay_cap_nhat: now,
+  });
 
   for (const [index, [ma_quyen, ten_quyen, ma_he_thong, nhom_quyen, la_quyen_nguy_hiem]] of permissions.entries()) {
     console.log(`Đang tạo quyền: quyen/${ma_quyen}`);

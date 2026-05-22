@@ -7,6 +7,7 @@ import { SystemSelectPage } from './pages/SystemSelectPage';
 import { UsersPage } from './pages/UsersPage';
 import { UnitsPage } from './pages/UnitsPage';
 import { RolesPage } from './pages/RolesPage';
+import { LoginAppearancePage } from './pages/LoginAppearancePage';
 import { getAdminUrl } from './utils/urls';
 
 function AccountLayout({ children }: { children: React.ReactNode }) {
@@ -45,6 +46,11 @@ function AccountLayout({ children }: { children: React.ReactNode }) {
             {canManageRoles && (
               <Link to="/roles" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
                 Vai trò
+              </Link>
+            )}
+            {canManageRoles && (
+              <Link to="/login-appearance" className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
+                Giao diện đăng nhập
               </Link>
             )}
             <a href={getAdminUrl('/dashboard')} className="rounded-lg border border-gray-300 px-4 py-2 text-sm text-gray-700 hover:bg-gray-50">
@@ -97,6 +103,16 @@ export default function App() {
               <ProtectedRoute requiredPermissions={['quan_ly_phan_quyen']}>
                 <AccountLayout>
                   <RolesPage />
+                </AccountLayout>
+              </ProtectedRoute>
+            }
+          />
+          <Route
+            path="/login-appearance"
+            element={
+              <ProtectedRoute requiredPermissions={['quan_ly_phan_quyen']}>
+                <AccountLayout>
+                  <LoginAppearancePage />
                 </AccountLayout>
               </ProtectedRoute>
             }

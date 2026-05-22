@@ -1,57 +1,82 @@
-import { FormEvent, useEffect, useMemo, useState } from 'react';
-import { useNavigate, useSearchParams } from 'react-router-dom';
-import { Database, Eye, EyeOff, FileSpreadsheet, FileText, Image as ImageIcon, Lock, Mail, User } from 'lucide-react';
-import { useAuth } from '../contexts/AuthContext';
+import { FormEvent, useEffect, useMemo, useState } from "react";
+import { useNavigate, useSearchParams } from "react-router-dom";
+import {
+  Database,
+  Eye,
+  EyeOff,
+  FileSpreadsheet,
+  FileText,
+  Image as ImageIcon,
+  Lock,
+  Mail,
+  User,
+} from "lucide-react";
+import { useAuth } from "../contexts/AuthContext";
+import { defaultLoginAppearanceSettings, getLoginAppearanceSettings, type LoginAppearanceSettings } from "../services/loginAppearanceService";
 
 export function LoginPage() {
   const [params] = useSearchParams();
   const navigate = useNavigate();
   const { user, loading, error, login, logout, clearError } = useAuth();
-  const [email, setEmail] = useState('');
-  const [password, setPassword] = useState('');
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
-  const [localError, setLocalError] = useState('');
-  const reason = params.get('reason') ?? '';
-  const hasLogoutFlag = params.get('logout') === '1';
+  const [localError, setLocalError] = useState("");
+  const [appearance, setAppearance] = useState<LoginAppearanceSettings>(defaultLoginAppearanceSettings);
+  const reason = params.get("reason") ?? "";
+  const hasLogoutFlag = params.get("logout") === "1";
 
-  const message = useMemo(() => localError || error || reason, [error, localError, reason]);
+  const message = useMemo(
+    () => localError || error || reason,
+    [error, localError, reason],
+  );
+
+  useEffect(() => {
+    getLoginAppearanceSettings().then(setAppearance).catch(() => undefined);
+  }, []);
 
   useEffect(() => {
     if (!hasLogoutFlag) return;
     logout().finally(() => {
-      const nextReason = reason ? `?reason=${encodeURIComponent(reason)}` : '';
+      const nextReason = reason ? `?reason=${encodeURIComponent(reason)}` : "";
       navigate(`/${nextReason}`, { replace: true });
     });
   }, [hasLogoutFlag, logout, navigate, reason]);
 
   useEffect(() => {
     if (!user || hasLogoutFlag) return;
-    if (user.bat_buoc_doi_mat_khau || user.trang_thai === 'cho_doi_mat_khau') {
-      navigate('/doi-mat-khau', { replace: true });
+    if (user.bat_buoc_doi_mat_khau || user.trang_thai === "cho_doi_mat_khau") {
+      navigate("/doi-mat-khau", { replace: true });
       return;
     }
-    navigate('/chon-he-thong', { replace: true });
+    navigate("/chon-he-thong", { replace: true });
   }, [hasLogoutFlag, navigate, user]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
     clearError();
-    setLocalError('');
+    setLocalError("");
 
     if (!email.trim() || !password) {
-      setLocalError('Vui lòng nhập email và mật khẩu.');
+      setLocalError("Vui lòng nhập email và mật khẩu.");
       return;
     }
 
     try {
       const profile = await login(email.trim(), password);
-      if (profile.bat_buoc_doi_mat_khau || profile.trang_thai === 'cho_doi_mat_khau') {
-        navigate('/doi-mat-khau', { replace: true });
+      if (
+        profile.bat_buoc_doi_mat_khau ||
+        profile.trang_thai === "cho_doi_mat_khau"
+      ) {
+        navigate("/doi-mat-khau", { replace: true });
         return;
       }
-      navigate('/chon-he-thong', { replace: true });
+      navigate("/chon-he-thong", { replace: true });
     } catch (loginError) {
-      const friendlyMessage = loginError instanceof Error ? loginError.message : 'Đăng nhập không thành công.';
+      const friendlyMessage =
+        loginError instanceof Error
+          ? loginError.message
+          : "Đăng nhập không thành công.";
       setLocalError(friendlyMessage);
     }
   }
@@ -63,8 +88,8 @@ export function LoginPage() {
         <div className="relative z-10 flex w-full flex-col items-center justify-center px-16 text-white">
           <div className="mb-12 overflow-hidden rounded-2xl border-4 border-white/20 shadow-2xl">
             <img
-              src="https://images.unsplash.com/photo-1522071820081-009f0129c71c?w=600&h=400&fit=crop"
-              alt="Sinh viên làm việc nhóm"
+              src={appearance.anh_dang_nhap_url}
+              alt={appearance.anh_dang_nhap_alt}
               className="h-64 w-full object-cover"
             />
           </div>
@@ -93,8 +118,10 @@ export function LoginPage() {
           </div>
 
           <div className="mt-12 text-center">
-            <h2 className="mb-2 text-2xl font-semibold text-cyan-200">Hệ thống quản lý Đoàn - Hội</h2>
-            <p className="text-white/80">Đoàn - Hội Khoa Công nghệ Thông tin</p>
+            <h2 className="mb-2 text-2xl font-semibold text-cyan-200">
+              {appearance.tieu_de_phu}
+            </h2>
+            <p className="text-white/80">{appearance.ten_don_vi}</p>
           </div>
         </div>
       </section>
@@ -109,19 +136,28 @@ export function LoginPage() {
 
           <div className="rounded-3xl border border-gray-200 bg-white p-8 shadow-xl">
             <div className="mb-8 text-center">
-              <h1 className="mb-2 text-2xl font-semibold text-blue-900">Đăng nhập hệ thống</h1>
+              <h1 className="mb-2 text-2xl font-semibold text-blue-900">
+                Đăng nhập hệ thống
+              </h1>
               <p className="text-gray-600">Hệ thống quản lý Đoàn - Hội</p>
             </div>
 
             {message && (
-              <div className={`mb-5 rounded-lg border px-4 py-3 text-sm ${localError || error ? 'border-red-200 bg-red-50 text-red-700' : 'border-blue-200 bg-blue-50 text-blue-700'}`}>
+              <div
+                className={`mb-5 rounded-lg border px-4 py-3 text-sm ${localError || error ? "border-red-200 bg-red-50 text-red-700" : "border-blue-200 bg-blue-50 text-blue-700"}`}
+              >
                 {message}
               </div>
             )}
 
             <form className="space-y-6" onSubmit={handleSubmit}>
               <div>
-                <label className="mb-2 block font-medium text-gray-700" htmlFor="email">Email</label>
+                <label
+                  className="mb-2 block font-medium text-gray-700"
+                  htmlFor="email"
+                >
+                  Email
+                </label>
                 <div className="relative">
                   <Mail className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <input
@@ -137,12 +173,17 @@ export function LoginPage() {
               </div>
 
               <div>
-                <label className="mb-2 block font-medium text-gray-700" htmlFor="password">Mật khẩu</label>
+                <label
+                  className="mb-2 block font-medium text-gray-700"
+                  htmlFor="password"
+                >
+                  Mật khẩu
+                </label>
                 <div className="relative">
                   <Lock className="absolute left-4 top-1/2 h-5 w-5 -translate-y-1/2 text-gray-400" />
                   <input
                     id="password"
-                    type={showPassword ? 'text' : 'password'}
+                    type={showPassword ? "text" : "password"}
                     value={password}
                     onChange={(event) => setPassword(event.target.value)}
                     placeholder="••••••••"
@@ -153,41 +194,40 @@ export function LoginPage() {
                     type="button"
                     onClick={() => setShowPassword(!showPassword)}
                     className="absolute right-4 top-1/2 -translate-y-1/2 text-gray-400 transition-colors hover:text-gray-600"
-                    aria-label={showPassword ? 'Ẩn mật khẩu' : 'Hiện mật khẩu'}
+                    aria-label={showPassword ? "Ẩn mật khẩu" : "Hiện mật khẩu"}
                   >
-                    {showPassword ? <EyeOff className="h-5 w-5" /> : <Eye className="h-5 w-5" />}
+                    {showPassword ? (
+                      <EyeOff className="h-5 w-5" />
+                    ) : (
+                      <Eye className="h-5 w-5" />
+                    )}
                   </button>
                 </div>
               </div>
 
               <div className="flex justify-end">
-                <button type="button" className="text-cyan-600 transition-colors hover:text-cyan-700">
+                <button
+                  type="button"
+                  className="text-cyan-600 transition-colors hover:text-cyan-700"
+                >
                   Quên mật khẩu?
                 </button>
               </div>
 
-              <button disabled={loading || hasLogoutFlag} className="w-full rounded-xl bg-gradient-to-r from-blue-900 to-cyan-700 py-3 font-semibold text-white shadow-lg transition-all hover:from-blue-800 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-70" type="submit">
-                {loading || hasLogoutFlag ? 'Đang xử lý...' : 'Đăng nhập'}
-              </button>
-
-              <div className="relative my-6">
-                <div className="absolute inset-0 flex items-center">
-                  <div className="w-full border-t border-gray-300"></div>
-                </div>
-                <div className="relative flex justify-center">
-                  <span className="bg-white px-4 text-gray-500">hoặc</span>
-                </div>
-              </div>
-
-              <button type="button" className="flex w-full items-center justify-center gap-2 rounded-xl border-2 border-blue-900 py-3 text-blue-900 transition-all hover:bg-blue-900 hover:text-white">
-                <Mail className="h-5 w-5" />
-                Đăng nhập bằng email trường
+              <button
+                disabled={loading || hasLogoutFlag}
+                className="w-full rounded-xl bg-gradient-to-r from-blue-900 to-cyan-700 py-3 font-semibold text-white shadow-lg transition-all hover:from-blue-800 hover:to-cyan-600 disabled:cursor-not-allowed disabled:opacity-70"
+                type="submit"
+              >
+                {loading || hasLogoutFlag ? "Đang xử lý..." : "Đăng nhập"}
               </button>
             </form>
           </div>
 
           <div className="mt-8 text-center">
-            <p className="text-gray-600">© 2026 Đoàn - Hội Khoa Công nghệ Thông tin</p>
+            <p className="text-gray-600">
+              © 2026 Đoàn - Hội Khoa Công nghệ Thông tin
+            </p>
           </div>
         </div>
       </section>
